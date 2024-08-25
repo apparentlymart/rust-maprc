@@ -2,7 +2,7 @@
 description = "Rc and alloc::sync::Arc alternatives that allow the smart pointer to refer to just a portion of a reference-counted allocation."
 license-file = "LICENSE"
 repository = "https://github.com/apparentlymart/rust-maprc"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 name = "maprc"
 
