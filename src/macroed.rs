@@ -16,6 +16,8 @@ macro_rules! rc_wrapper {
             use super::$basestrong;
             use super::$baseweak;
             use super::Erased;
+            #[allow(unused)]
+            use core::mem::MaybeUninit;
 
             #[doc = concat!("Smart pointer to all or part of a reference-counted heap allocation.
 
@@ -69,6 +71,31 @@ over what it points at regardless of what it's contained within.
                         ptr: $basestrong::as_ptr(&v),
                         owner: v as $basestrong<dyn Erased>,
                     }
+                }
+            }
+
+            #[cfg(feature = "experimental_allocator_api")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "experimental_allocator_api")))]
+            /// Additional functions that are available only with feature `experimental_allocator_api`,
+            /// which in turn depends on the Rust experimental feature `allocator_api` and thus
+            /// requires a nightly build and is subject to break in future.
+            impl<T: 'static> $strongname<T> {
+                /// Creates a new reference-counted allocation containing the given value,
+                /// returning an error if the allocation fails.
+                #[inline(always)]
+                pub fn try_new(v: T) -> Result<Self, alloc::alloc::AllocError> {
+                    let owner = $basestrong::try_new(v)?;
+                    let ptr = $basestrong::as_ptr(&owner);
+                    Ok(Self { ptr, owner })
+                }
+
+                /// Creates a new reference-counted allocation suitable for `T` without
+                /// initializing it, returning an error if the allocation fails.
+                #[inline(always)]
+                pub fn try_new_uninit() -> Result<$strongname<MaybeUninit<T>>, alloc::alloc::AllocError> {
+                    let owner = $basestrong::try_new_uninit()?;
+                    let ptr = $basestrong::as_ptr(&owner);
+                    Ok($strongname { ptr, owner })
                 }
             }
 

@@ -12,3 +12,8 @@ name = "maprc"
 default = ['arc', 'rc']
 arc = []
 rc = []
+experimental_allocator_api = []
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

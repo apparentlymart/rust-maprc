@@ -7,6 +7,8 @@
 //! pointer to just one of its fields while still keeping the entire allocation
 //! live.
 #![no_std]
+#![cfg_attr(feature = "experimental_allocator_api", feature(allocator_api))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
 
