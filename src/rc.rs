@@ -4,6 +4,9 @@
 
 pub use crate::macroed::rc::*;
 
+impl<T> core::panic::UnwindSafe for Rc<T> {}
+impl<T> core::panic::UnwindSafe for Weak<T> {}
+
 #[cfg(test)]
 mod tests {
     extern crate alloc;

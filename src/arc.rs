@@ -4,10 +4,14 @@
 
 pub use crate::macroed::arc::*;
 
-unsafe impl<T> Sync for Arc<T> {}
-unsafe impl<T> Send for Arc<T> {}
-unsafe impl<T> Sync for Weak<T> {}
-unsafe impl<T> Send for Weak<T> {}
+unsafe impl<T: ?Sized + Sync + Send> Sync for Arc<T> {}
+unsafe impl<T: ?Sized + Sync + Send> Send for Arc<T> {}
+impl<T: ?Sized + core::panic::RefUnwindSafe> core::panic::UnwindSafe for Arc<T> {}
+impl<T: ?Sized> core::panic::RefUnwindSafe for Arc<T> {}
+unsafe impl<T: ?Sized + Sync + Send> Sync for Weak<T> {}
+unsafe impl<T: ?Sized + Sync + Send> Send for Weak<T> {}
+impl<T: ?Sized> core::panic::UnwindSafe for Weak<T> {}
+impl<T: ?Sized> core::panic::RefUnwindSafe for Weak<T> {}
 
 #[cfg(test)]
 mod tests {

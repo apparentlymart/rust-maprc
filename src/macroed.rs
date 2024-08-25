@@ -63,6 +63,8 @@ over what it points at regardless of what it's contained within.
                 #[doc = concat!("Transforms an [`", stringify!($basestrong) ,"`] into an [`", stringify!($strongname), "`] referring to the same allocation.")]
                 #[inline(always)]
                 pub fn from_alloc(v: $basestrong<T>) -> Self {
+                    // TODO: It would be better if this were implemented for ?Sized
+                    // but we can't type-erase a dynamically-sized T.
                     Self {
                         ptr: $basestrong::as_ptr(&v),
                         owner: v as $basestrong<dyn Erased>,
@@ -159,8 +161,33 @@ over what it points at regardless of what it's contained within.
                 type Target = T;
 
                 /// Returns a reference to the pointee.
+                #[inline(always)]
                 fn deref(&self) -> &T {
                     unsafe { &*self.ptr }
+                }
+            }
+
+            impl<T> core::convert::AsRef<T> for $strongname<T> {
+                #[inline(always)]
+                fn as_ref(&self) -> &T {
+                    unsafe { &*self.ptr }
+                }
+            }
+
+            impl<T> core::borrow::Borrow<T> for $strongname<T> {
+                #[inline(always)]
+                fn borrow(&self) -> &T {
+                    unsafe { &*self.ptr }
+                }
+            }
+
+            impl<T> core::clone::Clone for $strongname<T> {
+                /// Creates a new pointer to the same value in the same allocation.
+                ///
+                /// This is equivalent to [`Self::clone`].
+                #[inline(always)]
+                fn clone(&self) -> Self {
+                    $strongname::<T>::clone(self)
                 }
             }
 
@@ -182,6 +209,81 @@ over what it points at regardless of what it's contained within.
                 #[inline(always)]
                 fn from(value: $basestrong<T>) -> Self {
                     Self::from_alloc(value)
+                }
+            }
+
+            impl<T: 'static> From<alloc::boxed::Box<T>> for $strongname<T> {
+                /// Converts from the standard library implementation to this implementation while
+                /// reusing the same underlying allocation.
+                ///
+                /// Equivalent to [`Self::from_alloc`].
+                fn from(value: alloc::boxed::Box<T>) -> Self {
+                    let owner: $basestrong<T> = value.into();
+                    Self::from_alloc(owner)
+                }
+            }
+
+            impl<T: core::hash::Hash + ?Sized> core::hash::Hash for $strongname<T> {
+                #[inline]
+                fn hash<H>(&self, hasher: &mut H) where H: core::hash::Hasher {
+                    use core::ops::Deref;
+                    let r = self.deref();
+                    <T as core::hash::Hash>::hash(r, hasher)
+                }
+            }
+
+            impl<T: core::cmp::PartialEq + ?Sized> core::cmp::PartialEq for $strongname<T> {
+                #[inline]
+                fn eq(&self, other: &Self) -> bool {
+                    use core::ops::Deref;
+                    let r1 = self.deref();
+                    let r2 = other.deref();
+                    <T as core::cmp::PartialEq>::eq(r1, r2)
+                }
+            }
+
+            impl<T: core::cmp::Eq + ?Sized> core::cmp::Eq for $strongname<T> {}
+
+            impl<T: core::cmp::PartialOrd + ?Sized> core::cmp::PartialOrd for $strongname<T> {
+                fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+                    use core::ops::Deref;
+                    let r1 = self.deref();
+                    let r2 = other.deref();
+                    <T as core::cmp::PartialOrd>::partial_cmp(r1, r2)
+                }
+            }
+
+            impl<T: core::cmp::Ord + ?Sized> core::cmp::Ord for $strongname<T> {
+                fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+                    use core::ops::Deref;
+                    let r1 = self.deref();
+                    let r2 = other.deref();
+                    <T as core::cmp::Ord>::cmp(r1, r2)
+                }
+            }
+
+            impl<T: core::default::Default + 'static> core::default::Default for $strongname<T> {
+                #[inline(always)]
+                fn default() -> Self {
+                    Self::new(T::default())
+                }
+            }
+
+            impl<T: ?Sized + core::fmt::Debug> core::fmt::Debug for $strongname<T> {
+                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    core::fmt::Debug::fmt(&**self, f)
+                }
+            }
+
+            impl<T: ?Sized + core::fmt::Display> core::fmt::Display for $strongname<T> {
+                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    core::fmt::Display::fmt(&**self, f)
+                }
+            }
+
+            impl<T: ?Sized + core::fmt::Pointer> core::fmt::Pointer for $strongname<T> {
+                fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                    core::fmt::Pointer::fmt(&**self, f)
                 }
             }
 
@@ -246,6 +348,16 @@ over what it points at regardless of what it's contained within.
                 #[inline(always)]
                 fn from(value: $baseweak<T>) -> Self {
                     Self::from_alloc(value)
+                }
+            }
+
+            impl<T: core::default::Default + 'static> core::default::Default for $weakname<T> {
+                /// Returns a weak reference without any strong counterpart.
+                ///
+                /// Equivalent to [`Self::new`].
+                #[inline(always)]
+                fn default() -> Self {
+                    Self::new()
                 }
             }
         }
