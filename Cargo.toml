@@ -1,18 +1,18 @@
 [package]
-description = "Rc and alloc::sync::Arc alternatives that allow the smart pointer to refer to just a portion of a reference-counted allocation."
+description = "Rc and Arc alternatives that allow the smart pointer to refer to just a portion of a reference-counted allocation."
+edition = "2021"
 license-file = "LICENSE"
+name = "maprc"
 repository = "https://github.com/apparentlymart/rust-maprc"
 version = "0.2.0"
-edition = "2021"
-name = "maprc"
 
 [dependencies]
 
 [features]
-default = ['arc', 'rc']
 arc = []
-rc = []
+default = ['arc', 'rc']
 experimental_allocator_api = []
+rc = []
 
 [package.metadata.docs.rs]
 all-features = true
