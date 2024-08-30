@@ -35,7 +35,7 @@ over what it points at regardless of what it's contained within.
 ")]
             pub struct $strongname<T: ?Sized> {
                 ptr: *const T,
-                owner: $basestrong<dyn Erased>,
+                owner: Option<$basestrong<dyn Erased>>,
             }
 
             impl<T: 'static> $strongname<T> {
@@ -44,7 +44,7 @@ over what it points at regardless of what it's contained within.
                 pub fn new(v: T) -> Self {
                     let owner = $basestrong::new(v);
                     let ptr = $basestrong::as_ptr(&owner);
-                    Self { ptr, owner }
+                    Self { ptr, owner: Some(owner) }
                 }
 
                 /// Constructs a new reference-counted allocation that could contain a weak pointer to itself.
@@ -59,7 +59,7 @@ over what it points at regardless of what it's contained within.
                         data_fn(&weak)
                     });
                     let ptr = $basestrong::as_ptr(&owner);
-                    Self { ptr, owner }
+                    Self { ptr, owner: Some(owner) }
                 }
 
                 #[doc = concat!("Transforms an [`", stringify!($basestrong) ,"`] into an [`", stringify!($strongname), "`] referring to the same allocation.")]
@@ -69,7 +69,7 @@ over what it points at regardless of what it's contained within.
                     // but we can't type-erase a dynamically-sized T.
                     Self {
                         ptr: $basestrong::as_ptr(&v),
-                        owner: v as $basestrong<dyn Erased>,
+                        owner: Some(v as $basestrong<dyn Erased>),
                     }
                 }
             }
@@ -100,6 +100,15 @@ over what it points at regardless of what it's contained within.
             }
 
             impl<T: ?Sized> $strongname<T> {
+                #[doc = concat!("Wraps the target of the given static reference in an [`", stringify!($strongname) ,"`] that does not actually perform any reference counting and performs no heap allocation, because a static object is never dropped.\n\nThis is here to allow both reference-counted and statically-allocated objects to be stored in the same type where that's convenient, but wastes two pointers of storage compared to just using the reference directly.")]
+                #[inline(always)]
+                pub const fn from_static_ref(r: &'static T) -> Self {
+                    Self {
+                        ptr: r as *const _,
+                        owner: None,
+                    }
+                }
+
                 /// Gets a raw pointer to the target.
                 ///
                 /// The counts are not affected in any way and the pointer remains valid
@@ -116,7 +125,7 @@ over what it points at regardless of what it's contained within.
                 pub fn clone(this: &Self) -> Self {
                     Self {
                         ptr: this.ptr,
-                        owner: $basestrong::clone(&this.owner),
+                        owner: this.owner.clone(),
                     }
                 }
 
@@ -156,31 +165,65 @@ over what it points at regardless of what it's contained within.
 
                 /// Creates a weak pointer to the same target value.
                 pub fn downgrade(this: &Self) -> Weak<T> {
-                    Weak {
-                        ptr: this.ptr,
-                        owner: $basestrong::downgrade(&this.owner),
+                    match &this.owner {
+                        Some(owner) => Weak {
+                            ptr: this.ptr,
+                            owner: Some($basestrong::downgrade(owner)),
+                        },
+                        None => Weak {
+                            ptr: this.ptr,
+                            owner: None,
+                        }
                     }
+
                 }
 
                 /// Gets the number of strong pointers to this allocation.
+                ///
+                /// Returns [`usize::MAX`] if this reference was created using
+                /// [`Self::from_static_ref`], because there is no true
+                /// reference count for a static allocation.
                 #[inline(always)]
                 pub fn strong_count(this: &Self) -> usize {
-                    $basestrong::strong_count(&this.owner)
+                    match &this.owner {
+                        Some(owner) => $basestrong::strong_count(owner),
+                        None => usize::MAX,
+                    }
                 }
 
                 /// Gets the number of weak pointers to this allocation.
+                ///
+                /// Returns [`usize::MAX`] if this reference was created using
+                /// [`Self::from_static_ref`], because there is no true
+                /// reference count for a static allocation.
                 #[inline(always)]
                 pub fn weak_count(this: &Self) -> usize {
-                    $basestrong::weak_count(&this.owner)
+                    match &this.owner {
+                        Some(owner) => $basestrong::weak_count(owner),
+                        None => usize::MAX,
+                    }
                 }
 
                 /// Gets the size of the allocation containing the value this pointer refers to.
                 ///
                 /// This is _not_ the size of the pointee unless the pointer is to the whole
                 /// allocation, as is true for the result of [`Self::new`].
+                ///
+                /// For a pointer into a static object created with [`Self::from_static_ref`],
+                /// returns zero to represent that there is no dynamic allocation.
                 #[inline(always)]
                 pub fn allocation_size(this: &Self) -> usize {
-                    core::mem::size_of_val(core::ops::Deref::deref(this))
+                    match &this.owner {
+                        Some(owner) => core::mem::size_of_val(core::ops::Deref::deref(owner)),
+                        None => 0,
+                    }
+                }
+
+                /// Returns `true` if `this` refers to a static object rather
+                /// than to a reference-counted object.
+                #[inline(always)]
+                pub fn target_is_static(this: &Self) -> bool {
+                    this.owner.is_none()
                 }
             }
 
@@ -317,7 +360,7 @@ over what it points at regardless of what it's contained within.
             #[doc = concat!("Weak-reference counterpart of [`", stringify!($strongname), "`].")]
             pub struct $weakname<T: ?Sized> {
                 ptr: *const T,
-                owner: $baseweak<dyn Erased>,
+                owner: Option<$baseweak<dyn Erased>>,
             }
 
             impl<T: 'static> $weakname<T> {
@@ -329,7 +372,7 @@ over what it points at regardless of what it's contained within.
                     let owner = $baseweak::new();
                     Self {
                         ptr: $baseweak::as_ptr(&owner),
-                        owner: owner as $baseweak<dyn Erased>,
+                        owner: Some(owner as $baseweak<dyn Erased>),
                     }
                 }
 
@@ -338,36 +381,76 @@ over what it points at regardless of what it's contained within.
                 pub fn from_alloc(v: $baseweak<T>) -> Self {
                     Self {
                         ptr: $baseweak::as_ptr(&v),
-                        owner: v as $baseweak<dyn Erased>,
+                        owner: Some(v as $baseweak<dyn Erased>),
                     }
                 }
             }
 
             impl<T: ?Sized> Weak<T> {
+                #[doc = concat!("Wraps the target of the given static reference in a [`", stringify!($weakname) ,"`] that does not actually perform any reference counting and performs no heap allocation, because a static object is never dropped.\n\nThis is here to allow both reference-counted and statically-allocated objects to be stored in the same type where that's convenient, but wastes two pointers of storage compared to just using the reference directly.")]
+                #[inline(always)]
+                pub const fn from_static_ref(r: &'static T) -> Self {
+                    Self {
+                        ptr: r as *const _,
+                        owner: None,
+                    }
+                }
+
                 /// Attempts to upgrade the weak reference into a strong reference.
                 ///
                 /// Returns `None` if there are no strong references left live.
                 #[inline(always)]
                 pub fn upgrade(&self) -> Option<$strongname<T>> {
-                    self.owner.upgrade().map(
-                        #[inline(always)]
-                        |owner| $strongname {
+                    match &self.owner {
+                        Some(owner) => owner.upgrade().map(
+                            #[inline(always)]
+                            |owner| $strongname {
+                                ptr: self.ptr,
+                                owner: Some(owner),
+                            },
+                        ),
+                        None => Some($strongname {
                             ptr: self.ptr,
-                            owner,
-                        },
-                    )
+                            owner: None,
+                        }),
+                    }
                 }
 
                 /// Gets the number of strong pointers to this allocation.
+                ///
+                /// Returns [`usize::MAX`] if this reference was created using
+                /// [`Self::from_static_ref`], because there is no true
+                /// reference count for a static allocation.
                 #[inline(always)]
                 pub fn strong_count(&self) -> usize {
-                    self.owner.strong_count()
+                    match &self.owner {
+                        Some(owner) => owner.strong_count(),
+                        None => usize::MAX,
+                    }
                 }
 
                 /// Gets the number of weak pointers to this allocation.
+                ///
+                /// Returns [`usize::MAX`] if this reference was created using
+                /// [`Self::from_static_ref`], because there is no true
+                /// reference count for a static allocation.
                 #[inline(always)]
                 pub fn weak_count(&self) -> usize {
-                    self.owner.weak_count()
+                    match &self.owner {
+                        Some(owner) => owner.weak_count(),
+                        None => usize::MAX,
+                    }
+                }
+
+                /// Returns `true` if `self` refers to a static object rather
+                /// than to a reference-counted object.
+                ///
+                /// A weak reference to a static object can always be upgraded
+                /// because the static symbol acts as a permenent strong
+                /// reference for the full duration of the program.
+                #[inline(always)]
+                pub fn target_is_static(&self) -> bool {
+                    self.owner.is_none()
                 }
             }
 

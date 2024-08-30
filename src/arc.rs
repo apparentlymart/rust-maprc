@@ -26,6 +26,33 @@ mod tests {
     }
 
     #[test]
+    pub fn from_static_ref() {
+        static V: u64 = 39;
+        let p = Arc::from_static_ref(&V);
+        assert_eq!(*p, 39);
+        assert_eq!(Arc::allocation_size(&p), 0, "wrong allocation size");
+        assert_eq!(
+            Arc::target_is_static(&p),
+            true,
+            "target not reported as static"
+        );
+
+        let wp = Arc::downgrade(&p);
+        assert_eq!(
+            wp.target_is_static(),
+            true,
+            "weak target not reported as static"
+        );
+
+        drop(p);
+
+        // A "weak" for a static allocation can always be upgraded because
+        // the static symbol is effectively a permanent strong reference.
+        let maybe_p = wp.upgrade();
+        assert!(maybe_p.is_some());
+    }
+
+    #[test]
     pub fn naked_into() {
         let p: Arc<u64> = 24.into();
         assert_eq!(*p, 24);
@@ -66,6 +93,11 @@ mod tests {
         );
         assert_eq!(*foo_a, 3);
         assert_eq!(*foo_b, 4);
+        assert_eq!(
+            Arc::allocation_size(&foo_a),
+            core::mem::size_of::<Foo>(),
+            "wrong allocation size"
+        )
     }
 
     #[test]
