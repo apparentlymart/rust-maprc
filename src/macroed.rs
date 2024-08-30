@@ -86,7 +86,7 @@ over what it points at regardless of what it's contained within.
                 pub fn try_new(v: T) -> Result<Self, alloc::alloc::AllocError> {
                     let owner = $basestrong::try_new(v)?;
                     let ptr = $basestrong::as_ptr(&owner);
-                    Ok(Self { ptr, owner })
+                    Ok(Self { ptr, owner: Some(owner) })
                 }
 
                 /// Creates a new reference-counted allocation suitable for `T` without
@@ -95,7 +95,7 @@ over what it points at regardless of what it's contained within.
                 pub fn try_new_uninit() -> Result<$strongname<MaybeUninit<T>>, alloc::alloc::AllocError> {
                     let owner = $basestrong::try_new_uninit()?;
                     let ptr = $basestrong::as_ptr(&owner);
-                    Ok($strongname { ptr, owner })
+                    Ok($strongname { ptr, owner: Some(owner) })
                 }
             }
 
