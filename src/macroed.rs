@@ -109,6 +109,18 @@ over what it points at regardless of what it's contained within.
                     }
                 }
 
+                /// Builds an object (unsafely) from its raw parts.
+                ///
+                /// # Safety
+                ///
+                /// `ptr` must point to something inside `owner`'s heap
+                /// allocation, which would therefore remain valid as long as
+                /// that allocation is live.
+                #[inline(always)]
+                pub unsafe fn from_raw_parts<AllocT: 'static>(ptr: *const T, owner: $basestrong<AllocT>) -> Self {
+                    Self { ptr, owner: Some(owner as $basestrong<dyn Erased>) }
+                }
+
                 /// Gets a raw pointer to the target.
                 ///
                 /// The counts are not affected in any way and the pointer remains valid

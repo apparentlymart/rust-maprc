@@ -53,6 +53,14 @@ mod tests {
     }
 
     #[test]
+    pub fn from_raw_parts() {
+        let p = alloc::sync::Arc::new((45_u64, 23_u64));
+        let p1: &u64 = &alloc::sync::Arc::as_ref(&p).1;
+        let pm = unsafe { Arc::from_raw_parts(p1, p.clone()) };
+        assert_eq!(*pm, 23_u64);
+    }
+
+    #[test]
     pub fn naked_into() {
         let p: Arc<u64> = 24.into();
         assert_eq!(*p, 24);
